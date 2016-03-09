@@ -1,0 +1,14 @@
+"Games"
+{
+	"csgo"
+	{
+		"Offsets"
+		{
+			"AcceptInput"
+			{
+				"windows"	"40"
+				"linux"		"41"
+			}
+		}
+	}
+}
