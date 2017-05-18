@@ -73,7 +73,7 @@ public void OnPluginStart()
 		}
 	}
 }
-
+/*
 public PrefMenu(client, CookieMenuAction:actions, any:info, String:buffer[], maxlen){
 	if (actions == CookieMenuAction_SelectOption) {
 		DisplaySettingsMenu(client);
@@ -166,7 +166,7 @@ public OnClientCookiesCached(client) {
 	action[client] = StringToInt(sValue);
 	GetClientCookie(client, cDisableSoundMethod, sValue, sizeof(sValue));
 	method[client] = StringToInt(sValue);
-}
+}*/
 
 public OnClientDisconnect_Post(client) {
 	g_fCmdTime[client] = 0.0;
@@ -175,7 +175,10 @@ public OnClientDisconnect_Post(client) {
 	method[client] = 0;
 }
 
-public MRESReturn:AcceptInput(pThis, Handle:hReturn, Handle:hParams) {
+//Return types
+//https://wiki.alliedmods.net/Sourcehook_Development#Hook_Functions
+//
+public MRESReturn AcceptInput(pThis, Handle:hReturn, Handle:hParams) {
 	String:command[PLATFORM_MAX_PATH];
 	DHookGetParamString(hParams, 1, command, sizeof(command));
 	if(StrEqual(command, "PlaySound", false) && IsValidEntity(pThis)) {
@@ -219,61 +222,39 @@ public OnEntityCreated(entity, const String:classname[]) {
 	}
 }
 
-public Action:Command_StopMusic(client, args) {
+public Action Command_StopMusic(int client, any args)
+{
 	// Prevent this command from being spammed.
 	if (!client || g_fCmdTime[client] > GetGameTime())
 		return Plugin_Handled;
-	g_fCmdTime[client] = GetGameTime() + 2.0;
 
-	if(args >= 1) {
-		String:arg1[6];
-		GetCmdArg(1, arg1, sizeof(arg1));
-		if(StrEqual(arg1, "0", false) || StrEqual(arg1, "allow", false)) { //Allow map music
-			disabled[client] = true;
-		} else {
-			disabled[client] = false;
-		}
-	}
+	makeMusicMenu(client);
 
-	if(disabled[client]){
-		disabled[client] = false;
-		PrintToChat(client, "[SM] Map music Enabled.");
-		return Plugin_Handled;
-	}
-
-	PrintToChat(client, "[SM] Map music Disabled.");
-	SetClientCookie(client, cDisableSounds, (!disabled[client]) ? "1" : "0");
-	stopClientsMusic(client);
-	disabled[client] = true;
+	g_fCmdTime[client] = GetGameTime() + 3.0;
+ 
 	return Plugin_Handled;
 }
 
-public Action:Command_StartMusic(client, args) {
+public Action Command_Volume(int client, any args)
+{
 	// Prevent this command from being spammed.
 	if (!client || g_fCmdTime[client] > GetGameTime())
 		return Plugin_Handled;
-	g_fCmdTime[client] = GetGameTime() + 2.0;
 
-	disabled[client] = false;
-	PrintToChat(client, "[SM] Map music Enabled.");
+	makeVolumeMenu(client);
+
+	g_fCmdTime[client] = GetGameTime() + 3.0;
+ 
 	return Plugin_Handled;
 }
 
-public Action:Command_Music(client, args) {
-	// Prevent this command from being spammed.
-	if (!client || g_fCmdTime[client] > GetGameTime())
-		return Plugin_Handled;
-	g_fCmdTime[client] = GetGameTime() + 2.0;
-
-	DisplaySettingsMenu(client);
-	return Plugin_Handled;
+stock void Client_SendSound(int client, char[] name, float volume)
+{
+	EmitSoundToClient(client, name, SOUND_FROM_PLAYER, SNDCHAN_STATIC, SNDLEVEL_NORMAL, SND_NOFLAGS, volume, SNDPITCH_NORMAL, _, _, _, true);
 }
 
-stock stopClientsMusic(client) {
-	if(method[client] == 0 || method[client] == 1) {
-		ClientCommand(client, "playgamesound Music.StopAllExceptMusic");
-	}
-	if(method[client] == 0 || method[client] == 2) {
-		ClientCommand(client, "playgamesound Music.StopAllMusic");
-	}
+stock void Client_StopSound(int client)
+{
+	ClientCommand(client, "playgamesound Music.StopAllExceptMusic");
+	ClientCommand(client, "playgamesound Music.StopAllMusic");
 }
