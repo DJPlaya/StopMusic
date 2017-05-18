@@ -1,52 +1,42 @@
-/* Design
-
-The ability to disable map music
-
-Action:
-0	Stop all Ambient_generics which contains .mp3
-1	Stop all Ambient_generics which contains .wav & .mp3
-2	Stop all Ambient_generics
-	
-Method:
-0	Both
-1	Music.StopAllMusic
-2	Music.StopAllExceptMusic
-
-*/
 #pragma semicolon 1
+#pragma newdecls required
 
 #include <sourcemod>
 #include <sdktools>
 #include <dhooks>
-#include <clientprefs>
+//#include <clientprefs> //Maybe use this later on
 
-#define PLUGIN_NAME 	"Stop Map Music"
-#define PLUGIN_VERSION 	"1.2.0"
+#define PLUGIN_NAME 	"Toggle Music"
+#define PLUGIN_VERSION 	"3.0"
 
-new Float:g_fCmdTime[MAXPLAYERS+1];
+//Global Handles & Variables
 
-new Handle:cDisableSounds = INVALID_HANDLE;
-new Handle:cDisableSoundAction = INVALID_HANDLE;
-new Handle:cDisableSoundMethod = INVALID_HANDLE;
-new Handle:cDisableSoundSave = INVALID_HANDLE;
+Float:g_fCmdTime[MAXPLAYERS+1];
 
-new bool:disabled[MAXPLAYERS + 1] = {false,...};
-new bool:save[MAXPLAYERS + 1] = {false,...};
-new action[MAXPLAYERS + 1] = {0,...};
-new method[MAXPLAYERS + 1] = {0,...};
+Handle:cDisableSounds = INVALID_HANDLE;
+Handle:cDisableSoundAction = INVALID_HANDLE;
+Handle:cDisableSoundMethod = INVALID_HANDLE;
+Handle:cDisableSoundSave = INVALID_HANDLE;
 
-new Handle:hAcceptInput;
+bool:disabled[MAXPLAYERS + 1] = {false,...};
+bool:save[MAXPLAYERS + 1] = {false,...};
+action[MAXPLAYERS + 1] = {0,...};
+method[MAXPLAYERS + 1] = {0,...};
 
-public Plugin:myinfo = {
+Handleh AcceptInput;
+
+public Plugin myinfo =
+{
 	name = PLUGIN_NAME,
-	author = "Mitch",
-	description = "Allows clients to stop ambient sounds played by the map",
+	author = "Mitch & Agent Wesker",
+	description = "Allows clients to toggle ambient sounds played by the map",
 	version = PLUGIN_VERSION,
 	url = "http://www.sourcemod.net/"
 };
 
-public OnPluginStart() {
-	CreateConVar("sm_stopmusic_version", PLUGIN_VERSION, "Stop Map Music", FCVAR_PLUGIN|FCVAR_NOTIFY|FCVAR_DONTRECORD);
+public void OnPluginStart()
+{
+	CreateConVar("sm_stopmusic_version", PLUGIN_VERSION, "Toggle Map Music", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 
 	RegConsoleCmd("sm_stopmusic", Command_StopMusic, "Toggles map music");
 	RegConsoleCmd("sm_music", Command_Music, "Brings up the music menu");
