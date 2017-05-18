@@ -43,7 +43,7 @@ public void OnPluginStart()
 	RegConsoleCmd("sm_startmusic", Command_StartMusic, "Toggles map music");
 	RegConsoleCmd("sm_playmusic", Command_StartMusic, "Toggles map music");
 
-	new Handle:temp = LoadGameConfigFile("stopmusic.games");
+	new Handle:temp = LoadGameConfigFile("sdktools.games\engine.csgo");
 
 	if(temp == INVALID_HANDLE) {
 		SetFailState("Why you no has gamedata?");
