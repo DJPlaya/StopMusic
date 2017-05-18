@@ -13,13 +13,13 @@
 
 Float:g_fCmdTime[MAXPLAYERS+1];
 
-Handle:cDisableSounds = INVALID_HANDLE;
-Handle:cDisableSoundAction = INVALID_HANDLE;
-Handle:cDisableSoundMethod = INVALID_HANDLE;
-Handle:cDisableSoundSave = INVALID_HANDLE;
+Handle cDisableSounds = null;
+Handle cDisableSoundAction = null;
+Handle cDisableSoundMethod = null;
+Handle cDisableSoundSave = null;
 
-bool:disabled[MAXPLAYERS + 1] = {false,...};
-bool:save[MAXPLAYERS + 1] = {false,...};
+bool disabled[MAXPLAYERS + 1] = {false,...};
+bool save[MAXPLAYERS + 1] = {false,...};
 action[MAXPLAYERS + 1] = {0,...};
 method[MAXPLAYERS + 1] = {0,...};
 
@@ -43,13 +43,13 @@ public void OnPluginStart()
 	RegConsoleCmd("sm_startmusic", Command_StartMusic, "Toggles map music");
 	RegConsoleCmd("sm_playmusic", Command_StartMusic, "Toggles map music");
 
-	new Handle:temp = LoadGameConfigFile("sdktools.games\engine.csgo");
+	Handle temp = LoadGameConfigFile("sdktools.games\engine.csgo");
 
-	if(temp == INVALID_HANDLE) {
+	if(temp == null) {
 		SetFailState("Why you no has gamedata?");
 	}
 
-	new offset = GameConfGetOffset(temp, "AcceptInput");
+	offset = GameConfGetOffset(temp, "AcceptInput");
 	hAcceptInput = DHookCreate(offset, HookType_Entity, ReturnType_Bool, ThisPointer_CBaseEntity, AcceptInput);
 	DHookAddParam(hAcceptInput, HookParamType_CharPtr);
 	DHookAddParam(hAcceptInput, HookParamType_CBaseEntity);
@@ -63,7 +63,7 @@ public void OnPluginStart()
 	cDisableSoundSave = RegClientCookie("disable_map_music_save", "Disable Map Music Save", CookieAccess_Private);
 	SetCookieMenuItem(PrefMenu, 0, "Map Music");
 
-	for(new i = 1; i <= MaxClients; i++) {
+	for(i = 1; i <= MaxClients; i++) {
 		disabled[i] = false;
 		save[i] = false;
 		action[i] = 0;
@@ -119,7 +119,7 @@ public PrefMenuHandler(Handle:prefmenu, MenuAction:actions, client, item){
 }
 
 DisplaySettingsMenu(client) {
-	new Handle:prefmenu = CreateMenu(PrefMenuHandler, MENU_ACTIONS_DEFAULT);
+	Handle:prefmenu = CreateMenu(PrefMenuHandler, MENU_ACTIONS_DEFAULT);
 
 	SetMenuTitle(prefmenu, "Map Music: ");
 
@@ -176,10 +176,10 @@ public OnClientDisconnect_Post(client) {
 }
 
 public MRESReturn:AcceptInput(pThis, Handle:hReturn, Handle:hParams) {
-	new String:command[PLATFORM_MAX_PATH];
+	String:command[PLATFORM_MAX_PATH];
 	DHookGetParamString(hParams, 1, command, sizeof(command));
 	if(StrEqual(command, "PlaySound", false) && IsValidEntity(pThis)) {
-		new actionType = 2;
+		actionType = 2;
 		decl String:soundFile[PLATFORM_MAX_PATH];
 		GetEntPropString(pThis, Prop_Data, "m_iszSound", soundFile, sizeof(soundFile));
 		if(StrContains(soundFile, ".mp3", false) >= 0) {
@@ -189,7 +189,7 @@ public MRESReturn:AcceptInput(pThis, Handle:hReturn, Handle:hParams) {
 			actionType = 1;
 		}
 		SetEntProp(pThis, Prop_Data, "m_fLooping", false);
-		for(new i = 1; i <= MaxClients;i++) {
+		for(i = 1; i <= MaxClients;i++) {
 			if(!disabled[i] || !IsClientInGame(i)) { 
 				continue;
 			}
@@ -206,7 +206,7 @@ public MRESReturn:AcceptInput(pThis, Handle:hReturn, Handle:hParams) {
 }
 
 public Action:Timer_StopMusic(Handle:timer, any:userid)  {
-	new client = GetClientOfUserId(userid);
+	client = GetClientOfUserId(userid);
 	if(client && IsClientInGame(client)) {
 		stopClientsMusic(client);
 	}
@@ -226,7 +226,7 @@ public Action:Command_StopMusic(client, args) {
 	g_fCmdTime[client] = GetGameTime() + 2.0;
 
 	if(args >= 1) {
-		new String:arg1[6];
+		String:arg1[6];
 		GetCmdArg(1, arg1, sizeof(arg1));
 		if(StrEqual(arg1, "0", false) || StrEqual(arg1, "allow", false)) { //Allow map music
 			disabled[client] = true;
