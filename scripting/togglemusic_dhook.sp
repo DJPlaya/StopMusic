@@ -63,7 +63,7 @@ public OnClientDisconnect_Post(client) {
 //Return types
 //https://wiki.alliedmods.net/Sourcehook_Development#Hook_Functions
 //
-public MRESReturn AcceptInput(pThis, Handle hReturn, Handle hParams)
+public MRESReturn AcceptInput(int entity, Handle hReturn, Handle hParams)
 {
 	char eCommand[128];
 	DHookGetParamString(hParams, 1, eCommand, sizeof(eCommand));
@@ -72,24 +72,25 @@ public MRESReturn AcceptInput(pThis, Handle hReturn, Handle hParams)
 	DHookGetParamObjectPtrString(hParams, 4, 0, ObjectValueType_String, wtf, sizeof(wtf));
 	PrintToServer("Command %s Type %i String %s", eCommand, type, wtf);
 	return MRES_Ignored;
+	
 	//DHookSetReturn(hReturn, false);
 	//return MRES_Supercede;
 }
 /*
-public MRESReturn AcceptInput(pThis, Handle hReturn, Handle hParams) {
+public MRESReturn AcceptInput(int entity, Handle hReturn, Handle hParams) {
 	char command[PLATFORM_MAX_PATH];
 	DHookGetParamString(hParams, 1, command, sizeof(command));
-	if(StrEqual(command, "PlaySound", false) && IsValidEntity(pThis)) {
+	if(StrEqual(command, "PlaySound", false) && IsValidEntity(entity)) {
 		actionType = 2;
 		decl String:soundFile[PLATFORM_MAX_PATH];
-		GetEntPropString(pThis, Prop_Data, "m_iszSound", soundFile, sizeof(soundFile));
+		GetEntPropString(entity, Prop_Data, "m_iszSound", soundFile, sizeof(soundFile));
 		if(StrContains(soundFile, ".mp3", false) >= 0) {
 			actionType = 0;
 		}
 		if(StrContains(soundFile, ".wav", false) >= 0) {
 			actionType = 1;
 		}
-		SetEntProp(pThis, Prop_Data, "m_fLooping", false);
+		SetEntProp(entity, Prop_Data, "m_fLooping", false);
 		for(i = 1; i <= MaxClients;i++) {
 			if(!disabled[i] || !IsClientInGame(i)) { 
 				continue;
