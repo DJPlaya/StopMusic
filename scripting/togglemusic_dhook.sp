@@ -67,10 +67,13 @@ public MRESReturn AcceptInput(int entity, Handle hReturn, Handle hParams)
 {
 	char eCommand[128];
 	DHookGetParamString(hParams, 1, eCommand, sizeof(eCommand));
-	int type = DHookGetParamObjectPtrVar(hParams, 4, 16,ObjectValueType_Int);
 	char wtf[128];
 	DHookGetParamObjectPtrString(hParams, 4, 0, ObjectValueType_String, wtf, sizeof(wtf));
-	PrintToServer("Command %s Type %i String %s", eCommand, type, wtf);
+	char soundFile[PLATFORM_MAX_PATH], tName[48];
+	GetEntPropString(entity, Prop_Data, "m_iszSound", soundFile, sizeof(soundFile));
+	GetEntPropString(entity, Prop_Data, "m_iName", tName, sizeof(tName));
+	int hID = GetEntProp(entity, Prop_Data, "m_iHammerID");
+	PrintToServer("Cmd %s Name %s hID %i Param %s Song %s", eCommand, tName, hID, wtf, soundFile);
 	return MRES_Ignored;
 	
 	//DHookSetReturn(hReturn, false);
