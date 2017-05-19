@@ -1,5 +1,5 @@
 #pragma semicolon 1
-#pragma newdecls required
+//#pragma newdecls required
 
 #include <sourcemod>
 #include <sdktools>
@@ -10,20 +10,19 @@
 #define PLUGIN_VERSION 	"3.0"
 
 //Global Handles & Variables
-
-Float:g_fCmdTime[MAXPLAYERS+1];
-
-Handle cDisableSounds = null;
-Handle cDisableSoundAction = null;
-Handle cDisableSoundMethod = null;
-Handle cDisableSoundSave = null;
+float g_fCmdTime[MAXPLAYERS+1];
+float g_fClientVol[MAXPLAYERS+1];
+bool g_bDisabled[MAXPLAYERS + 1];
+bool g_bMapAmbient;
+bool g_bDebug;
 
 bool disabled[MAXPLAYERS + 1] = {false,...};
-bool save[MAXPLAYERS + 1] = {false,...};
-action[MAXPLAYERS + 1] = {0,...};
-method[MAXPLAYERS + 1] = {0,...};
 
-Handleh AcceptInput;
+/*Handle cDisableSounds = null;
+Handle cDisableSoundAction = null;
+Handle cDisableSoundMethod = null;
+Handle cDisableSoundSave = null;*/
+Handle hAcceptInput;
 
 public Plugin myinfo =
 {
@@ -38,148 +37,47 @@ public void OnPluginStart()
 {
 	CreateConVar("sm_stopmusic_version", PLUGIN_VERSION, "Toggle Map Music", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 
+	RegConsoleCmd("sm_music", Command_StopMusic, "Toggles map music");
 	RegConsoleCmd("sm_stopmusic", Command_StopMusic, "Toggles map music");
-	RegConsoleCmd("sm_music", Command_Music, "Brings up the music menu");
-	RegConsoleCmd("sm_startmusic", Command_StartMusic, "Toggles map music");
-	RegConsoleCmd("sm_playmusic", Command_StartMusic, "Toggles map music");
 
-	Handle temp = LoadGameConfigFile("sdktools.games\engine.csgo");
+	Handle temp = LoadGameConfigFile("sdktools.games\\engine.csgo");
 
 	if(temp == null) {
 		SetFailState("Why you no has gamedata?");
 	}
 
-	offset = GameConfGetOffset(temp, "AcceptInput");
+	int offset = GameConfGetOffset(temp, "AcceptInput");
 	hAcceptInput = DHookCreate(offset, HookType_Entity, ReturnType_Bool, ThisPointer_CBaseEntity, AcceptInput);
 	DHookAddParam(hAcceptInput, HookParamType_CharPtr);
 	DHookAddParam(hAcceptInput, HookParamType_CBaseEntity);
 	DHookAddParam(hAcceptInput, HookParamType_CBaseEntity);
 	DHookAddParam(hAcceptInput, HookParamType_Object, 20);
 	DHookAddParam(hAcceptInput, HookParamType_Int);
-
-	cDisableSounds = RegClientCookie("disable_map_music_2", "Disable Map Music", CookieAccess_Private);
-	cDisableSoundAction = RegClientCookie("disable_map_music_action", "Disable Map Music Action", CookieAccess_Private);
-	cDisableSoundMethod = RegClientCookie("disable_map_music_method", "Disable Map Music Method", CookieAccess_Private);
-	cDisableSoundSave = RegClientCookie("disable_map_music_save", "Disable Map Music Save", CookieAccess_Private);
-	SetCookieMenuItem(PrefMenu, 0, "Map Music");
-
-	for(i = 1; i <= MaxClients; i++) {
-		disabled[i] = false;
-		save[i] = false;
-		action[i] = 0;
-		method[i] = 0;
-		if(IsClientInGame(i) && AreClientCookiesCached(i)) {
-			OnClientCookiesCached(i);
-		}
-	}
 }
-/*
-public PrefMenu(client, CookieMenuAction:actions, any:info, String:buffer[], maxlen){
-	if (actions == CookieMenuAction_SelectOption) {
-		DisplaySettingsMenu(client);
-	}
-}
-
-public PrefMenuHandler(Handle:prefmenu, MenuAction:actions, client, item){
-	if (actions == MenuAction_Select) {
-		decl String:preference[8];
-		
-		GetMenuItem(prefmenu, item, preference, sizeof(preference));
-		
-		if(StrEqual(preference, "disable")) {
-			disabled[client] = true;
-			PrintToChat(client, "[SM] Map music Disabled.");
-			SetClientCookie(client, cDisableSounds, "1");
-			stopClientsMusic(client);
-		} else if(StrEqual(preference, "enable")) {
-			disabled[client] = false;
-			PrintToChat(client, "[SM] Map music Enabled.");
-			SetClientCookie(client, cDisableSounds, "0");
-		}
-		
-		if(StrContains(preference, "mthd") >= 0) {
-			method[client] = StringToInt(preference[5]);
-			SetClientCookie(client, cDisableSoundMethod, preference[5]);
-		}
-		if(StrContains(preference, "actn") >= 0) {
-			action[client] = StringToInt(preference[5]);
-			SetClientCookie(client, cDisableSoundAction, preference[5]);
-		}
-		if(StrContains(preference, "save") >= 0) {
-			save[client] = bool:StringToInt(preference[5]);
-			SetClientCookie(client, cDisableSoundSave, preference[5]);
-			PrintToChat(client, "[SM] Saving music settings %s.", save[client] ? "enabled" : "disabled");
-			
-		}
-		DisplaySettingsMenu(client);
-	}
-	else if (actions == MenuAction_End) {
-		CloseHandle(prefmenu);
-	}
-}
-
-DisplaySettingsMenu(client) {
-	Handle:prefmenu = CreateMenu(PrefMenuHandler, MENU_ACTIONS_DEFAULT);
-
-	SetMenuTitle(prefmenu, "Map Music: ");
-
-	AddMenuItem(prefmenu, disabled[client] ? "enable" : "disable", disabled[client] ? "Enable Music" : "Disable Music");
-	
-	AddMenuItem(prefmenu, save[client] ? "save_0" : "save_1", save[client] ? "Disable Saving" : "Enable Saving");
-	
-	switch(action[client]) {
-		case 0: {
-			AddMenuItem(prefmenu, "actn_1", "Action: mp3");
-		}
-		case 1: {
-			AddMenuItem(prefmenu, "actn_2", "Action: wav & mp3");
-		}
-		case 2: {
-			AddMenuItem(prefmenu, "actn_0", "Action: Stop All");
-		}
-	}
-	
-	switch(method[client]) {
-		case 0: {
-			AddMenuItem(prefmenu, "mthd_1", "Method: Both");
-		}
-		case 1: {
-			AddMenuItem(prefmenu, "mthd_2", "Method: StopAllMusic");
-		}
-		case 2: {
-			AddMenuItem(prefmenu, "mthd_0", "Method: StopAllExceptMusic");
-		}
-	}
-
-	DisplayMenu(prefmenu, client, MENU_TIME_FOREVER);
-}
-
-public OnClientCookiesCached(client) {
-	decl String:sValue[8];
-	GetClientCookie(client, cDisableSoundSave, sValue, sizeof(sValue));
-	save[client] = bool:StringToInt(sValue);
-	if(save[client]) {
-		GetClientCookie(client, cDisableSounds, sValue, sizeof(sValue));
-		disabled[client] = bool:StringToInt(sValue);
-	}
-	GetClientCookie(client, cDisableSoundAction, sValue, sizeof(sValue));
-	action[client] = StringToInt(sValue);
-	GetClientCookie(client, cDisableSoundMethod, sValue, sizeof(sValue));
-	method[client] = StringToInt(sValue);
-}*/
 
 public OnClientDisconnect_Post(client) {
 	g_fCmdTime[client] = 0.0;
 	disabled[client] = false;
-	action[client] = 0;
-	method[client] = 0;
 }
 
 //Return types
 //https://wiki.alliedmods.net/Sourcehook_Development#Hook_Functions
 //
-public MRESReturn AcceptInput(pThis, Handle:hReturn, Handle:hParams) {
-	String:command[PLATFORM_MAX_PATH];
+public MRESReturn AcceptInput(pThis, Handle hReturn, Handle hParams)
+{
+	char eCommand[128];
+	DHookGetParamString(hParams, 1, eCommand, sizeof(eCommand));
+	int type = DHookGetParamObjectPtrVar(hParams, 4, 16,ObjectValueType_Int);
+	char wtf[128];
+	DHookGetParamObjectPtrString(hParams, 4, 0, ObjectValueType_String, wtf, sizeof(wtf));
+	PrintToServer("Command %s Type %i String %s", eCommand, type, wtf);
+	return MRES_Ignored;
+	//DHookSetReturn(hReturn, false);
+	//return MRES_Supercede;
+}
+/*
+public MRESReturn AcceptInput(pThis, Handle hReturn, Handle hParams) {
+	char command[PLATFORM_MAX_PATH];
 	DHookGetParamString(hParams, 1, command, sizeof(command));
 	if(StrEqual(command, "PlaySound", false) && IsValidEntity(pThis)) {
 		actionType = 2;
@@ -207,17 +105,10 @@ public MRESReturn AcceptInput(pThis, Handle:hReturn, Handle:hParams) {
 	}
 	return MRES_Ignored;
 }
-
-public Action:Timer_StopMusic(Handle:timer, any:userid)  {
-	client = GetClientOfUserId(userid);
-	if(client && IsClientInGame(client)) {
-		stopClientsMusic(client);
-	}
-}
+*/
 
 public OnEntityCreated(entity, const String:classname[]) {
 	if(StrEqual(classname, "ambient_generic", false)){
-		SetEntProp(entity, Prop_Data, "m_spawnflags", GetEntProp(entity, Prop_Data, "m_spawnflags")|32);
 		DHookEntity(hAcceptInput, true, entity);
 	}
 }
@@ -248,6 +139,100 @@ public Action Command_Volume(int client, any args)
 	return Plugin_Handled;
 }
 
+public int Music_Menu(Menu menu, MenuAction action, int client, int param)
+{
+	if (action == MenuAction_Select && IsValidClient(client))
+	{
+		if (param == 0) {
+			g_bDisabled[client] = true;
+		} else if (param == 1) {
+			g_bDisabled[client] = false;
+		} else if (param == 3) {
+			makeVolumeMenu(client);
+			return;
+		}
+		
+		char info[32];
+		menu.GetItem(param, info, sizeof(info));
+		PrintCenterText(client, "Map Music set to: %s", info);
+		
+		if (g_bDisabled[client]) {
+			Client_StopSound(client);
+		}
+	} else if (action == MenuAction_End) {
+		delete(menu);
+	}
+}
+
+public int Volume_Menu(Menu menu, MenuAction action, int client, int param)
+{
+	if (action == MenuAction_Select && IsValidClient(client))
+	{
+		if (param == 0) {
+			g_fClientVol[client] = 100.0;
+		} else if (param == 1) {
+			g_fClientVol[client] = 75.0;
+		} else if (param == 2) {
+			g_fClientVol[client] = 50.0;
+		} else if (param == 3) {
+			g_fClientVol[client] = 25.0;
+		} else if (param == 4) {
+			g_fClientVol[client] = 10.0;
+		} else if (param == 5) {
+			g_fClientVol[client] = 0.0;
+		}
+		
+		Client_SetVolume(client, g_fClientVol[client]);
+		/*char sCookieValue[12];
+		FloatToString(g_fClientVol[client], sCookieValue, sizeof(sCookieValue));
+		SetClientCookie(client, g_hClientVolCookie, sCookieValue);*/
+		
+		char info[32];
+		menu.GetItem(param, info, sizeof(info));
+		PrintCenterText(client, "Volume set to: %i%", RoundFloat(g_fClientVol[client]));
+
+	} else if (action == MenuAction_Cancel && param == MenuCancel_ExitBack && IsValidClient(client)) {
+		makeMusicMenu(client);
+	} else if (action == MenuAction_End) {
+		delete(menu);
+	}
+}
+
+static void makeMusicMenu(int client)
+{
+	Menu musicMenu = CreateMenu(Music_Menu);
+	
+	char toggleSelection[32];
+	if (g_bDisabled[client]) {
+		toggleSelection = "Off";
+	} else {
+		toggleSelection = "On";
+	}
+	
+	musicMenu.SetTitle("Map Music: %s Volume: %i%", toggleSelection, RoundFloat(g_fClientVol[client]));
+	musicMenu.AddItem("off", "Off");
+	musicMenu.AddItem("on", "On");
+	musicMenu.AddItem("spacer1", "spacer1", ITEMDRAW_SPACER);
+	musicMenu.AddItem("vol", "Volume");
+	musicMenu.ExitButton = true;
+	musicMenu.Display(client, 30);
+}
+
+static void makeVolumeMenu(int client)
+{
+	Menu volumeMenu = CreateMenu(Volume_Menu);
+	volumeMenu.SetTitle("Volume: %i%", RoundFloat(g_fClientVol[client]));
+	volumeMenu.AddItem("100", "100%");
+	volumeMenu.AddItem("75", "75%");
+	volumeMenu.AddItem("50", "50%");
+	volumeMenu.AddItem("25", "25%");
+	volumeMenu.AddItem("10", "10%");
+	volumeMenu.AddItem("0", "0%");
+	volumeMenu.ExitButton = true;
+	volumeMenu.ExitBackButton = true;
+	volumeMenu.Display(client, 30);
+}
+
 stock void Client_SendSound(int client, char[] name, float volume)
 {
 	EmitSoundToClient(client, name, SOUND_FROM_PLAYER, SNDCHAN_STATIC, SNDLEVEL_NORMAL, SND_NOFLAGS, volume, SNDPITCH_NORMAL, _, _, _, true);
@@ -258,3 +243,15 @@ stock void Client_StopSound(int client)
 	ClientCommand(client, "playgamesound Music.StopAllExceptMusic");
 	ClientCommand(client, "playgamesound Music.StopAllMusic");
 }
+
+stock void Client_SetVolume(int client, float volume)
+{
+	//todo
+}
+
+static bool IsValidClient(int client) {
+	if (!IsClientInGame(client)) {
+		return false;
+	}
+	return true;
+}  
