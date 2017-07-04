@@ -10,7 +10,7 @@
 #pragma newdecls required
 
 #define PLUGIN_NAME 	"Toggle Music"
-#define PLUGIN_VERSION 	"3.5.1"
+#define PLUGIN_VERSION 	"3.5.2"
 
 //Create ConVar handles
 Handle g_hClientVolCookie;
@@ -35,7 +35,7 @@ public void OnPluginStart()
 {
 	CreateConVar("sm_togglemusic_version", PLUGIN_VERSION, "Toggle Map Music", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 
-	RegConsoleCmd("sm_music", Command_StopMusic, "Toggles map music");
+	RegConsoleCmd("sm_music", Command_Music, "Toggles map music");
 	RegConsoleCmd("sm_stopmusic", Command_StopMusic, "Toggles map music");
 	RegConsoleCmd("sm_volume", Command_Volume, "Brings volume menu");
 
