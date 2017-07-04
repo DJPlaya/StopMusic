@@ -10,7 +10,7 @@
 #pragma newdecls required
 
 #define PLUGIN_NAME 	"Toggle Music"
-#define PLUGIN_VERSION 	"3.5"
+#define PLUGIN_VERSION 	"3.5.1"
 
 //Create ConVar handles
 Handle g_hClientVolCookie;
@@ -227,6 +227,7 @@ public void OnEntitySpawned(int entity)
 				if (StrEqual(seName, eName, false))
 				{
 					g_smSourceEnts.SetValue(seName, EntIndexToEntRef(i), true);
+					return;
 				}
 			}
 		}
