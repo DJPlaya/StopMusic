@@ -10,7 +10,7 @@
 #pragma newdecls required
 
 #define PLUGIN_NAME 	"Toggle Music"
-#define PLUGIN_VERSION 	"3.6.1"
+#define PLUGIN_VERSION 	"3.6.2"
 
 //Create ConVar handles
 Handle g_hClientVolCookie;
@@ -134,7 +134,10 @@ public void OnClientPostAdminCheck(int client)
 
 public Action ClientMusicNotice(Handle timer, int client)
 {
-	PrintToChat(client, "[ToggleMusic] Music is currently disabled, type !music for options");
+	if (IsClientInGame(client))
+	{
+		PrintToChat(client, "[ToggleMusic] Music is currently disabled, type !music for options");
+	}
 }
 
 //Return types
