@@ -10,7 +10,7 @@
 #pragma newdecls required
 
 #define PLUGIN_NAME 	"Toggle Music"
-#define PLUGIN_VERSION 	"3.6.2"
+#define PLUGIN_VERSION 	"3.6.3"
 
 //Create ConVar handles
 Handle g_hClientVolCookie;
@@ -151,39 +151,50 @@ public MRESReturn AcceptInput(int entity, Handle hReturn, Handle hParams)
 	GetEntPropString(entity, Prop_Data, "m_iszSound", soundFile, sizeof(soundFile));
 	//Debug
 	//PrintToServer("Cmd %s Name %s Param %s Song %s", eCommand, eName, eParam, soundFile);
-
-	if (StrEqual(eCommand, "PlaySound", false) && IsValidEntity(entity))
+	if (IsValidEntity(entity))
 	{
-		int temp;
-		if (g_smRecent.GetValue(soundFile, temp))
+		if (StrEqual(eCommand, "PlaySound", false) || (StrEqual(eCommand, "Volume", false) && (StringToInt(eParam) > 0)))
 		{
-			g_smRecent.Remove(soundFile);
-			g_smCommon.SetValue(soundFile, 1, true);
-			AddToStringTable( FindStringTable( "soundprecache" ), FakePrecacheSound(soundFile, true) );
-			PrecacheSound(FakePrecacheSound(soundFile, true), false);
-			//Debug
-			//PrintToServer("COMMON SOUND DETECTED %s", soundFile);
-		}
-		bool common = g_smCommon.GetValue(soundFile, temp);
-		SendSoundAll(soundFile, entity, common);
+			int temp;
+			bool common = g_smCommon.GetValue(soundFile, temp);
+			if (StrEqual(eCommand, "Volume", false) && !common)
+			{
+				g_smCommon.SetValue(soundFile, 1, true);
+				common = true;
+				AddToStringTable( FindStringTable( "soundprecache" ), FakePrecacheSound(soundFile, true) );
+				PrecacheSound(FakePrecacheSound(soundFile, true), false);
+			}
+			if (g_smRecent.GetValue(soundFile, temp))
+			{
+				g_smRecent.Remove(soundFile);
+				g_smCommon.SetValue(soundFile, 1, true);
+				common = true;
+				AddToStringTable( FindStringTable( "soundprecache" ), FakePrecacheSound(soundFile, true) );
+				PrecacheSound(FakePrecacheSound(soundFile, true), false);
+				//Debug
+				//PrintToServer("COMMON SOUND DETECTED %s", soundFile);
+			}
 
-		if (!common)
+			SendSoundAll(soundFile, entity, common);
+	
+			if (!common)
+			{
+				g_smRecent.SetValue(soundFile, 1, true);
+				DataPack dataPack;
+				CreateDataTimer(1.5, CheckCommonSounds, dataPack);
+				dataPack.WriteString(soundFile);
+				dataPack.WriteCell(entity);
+			}
+			DHookSetReturn(hReturn, false);
+			return MRES_Supercede;
+		} 
+		else if (StrEqual(eCommand, "StopSound", false) || (StrEqual(eCommand, "Volume", false) && (StringToInt(eParam) == 0)))
 		{
-			g_smRecent.SetValue(soundFile, 1, true);
-			DataPack dataPack;
-			CreateDataTimer(1.5, CheckCommonSounds, dataPack);
-			dataPack.WriteString(soundFile);
-			dataPack.WriteCell(entity);
+			int temp;
+			bool common = g_smCommon.GetValue(soundFile, temp);	
+			StopSoundAll(soundFile, entity, common);
+			return MRES_Ignored;
 		}
-		DHookSetReturn(hReturn, false);
-		return MRES_Supercede;
-	} 
-	else if (StrEqual(eCommand, "StopSound", false) || (StrEqual(eCommand, "Volume", false) && StrEqual(eParam, "0", false)))
-	{
-		int temp;
-		bool common = g_smCommon.GetValue(soundFile, temp);	
-		StopSoundAll(soundFile, entity, common);
-		return MRES_Ignored;
 	}
 	
 	return MRES_Ignored;
