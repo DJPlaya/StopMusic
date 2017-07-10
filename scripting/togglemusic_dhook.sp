@@ -10,7 +10,7 @@
 #pragma newdecls required
 
 #define PLUGIN_NAME 	"Toggle Music"
-#define PLUGIN_VERSION 	"3.6.3"
+#define PLUGIN_VERSION 	"3.6.4"
 
 //Create ConVar handles
 Handle g_hClientVolCookie;
@@ -60,7 +60,24 @@ public void OnPluginStart()
 	if (hAcceptInput == null)
 	{
 	
-		Handle temp = LoadGameConfigFile("sdktools.games\\engine.csgo");
+		EngineVersion eVer = GetEngineVersion();
+		char tmpOffset[148];
+		
+		if (eVer == Engine_CSGO) {
+			tmpOffset = "sdktools.games\\engine.csgo";
+		} else if (eVer == Engine_CSS) {
+				tmpOffset = "sdktools.games\\engine.css";
+		} else if (eVer == Engine_TF2) {
+				tmpOffset = "sdktools.games\\engine.tf";
+		} else if (eVer == Engine_Contagion) {
+				tmpOffset = "sdktools.games\\engine.contagion";
+		} else if (eVer == Engine_Left4Dead2) {
+				tmpOffset = "sdktools.games\\engine.Left4Dead2";
+		} else if (eVer == Engine_AlienSwarm) {
+				tmpOffset = "sdktools.games\\engine.swarm";
+		}
+		
+		Handle temp = LoadGameConfigFile(tmpOffset);
 	
 		if(temp == null) {
 			SetFailState("Why you no has gamedata?");
