@@ -10,7 +10,7 @@
 #pragma newdecls required
 
 #define PLUGIN_NAME 	"Toggle Music"
-#define PLUGIN_VERSION 	"3.6.4"
+#define PLUGIN_VERSION 	"3.6.6"
 
 //Create ConVar handles
 Handle g_hClientVolCookie;
@@ -166,6 +166,7 @@ public MRESReturn AcceptInput(int entity, Handle hReturn, Handle hParams)
 	DHookGetParamString(hParams, 1, eCommand, sizeof(eCommand));
 	DHookGetParamObjectPtrString(hParams, 4, 0, ObjectValueType_String, eParam, sizeof(eParam));
 	GetEntPropString(entity, Prop_Data, "m_iszSound", soundFile, sizeof(soundFile));
+	int eFlags = GetEntProp(entity, Prop_Data, "m_spawnflags");
 	//Debug
 	//PrintToServer("Cmd %s Name %s Param %s Song %s", eCommand, eName, eParam, soundFile);
 	if (IsValidEntity(entity))
@@ -174,12 +175,15 @@ public MRESReturn AcceptInput(int entity, Handle hReturn, Handle hParams)
 		{
 			int temp;
 			bool common = g_smCommon.GetValue(soundFile, temp);
-			if (StrEqual(eCommand, "Volume", false) && !common)
+			if (StrEqual(eCommand, "Volume", false) && !common && !(eFlags & 1))
 			{
 				g_smCommon.SetValue(soundFile, 1, true);
 				common = true;
 				AddToStringTable( FindStringTable( "soundprecache" ), FakePrecacheSound(soundFile, true) );
 				PrecacheSound(FakePrecacheSound(soundFile, true), false);
+			} else if (StrEqual(eCommand, "Volume", false) && (eFlags & 1))
+			{
+				StopSoundAll(soundFile, entity, common);
 			}
 			if (g_smRecent.GetValue(soundFile, temp))
 			{
@@ -194,7 +198,7 @@ public MRESReturn AcceptInput(int entity, Handle hReturn, Handle hParams)
 
 			SendSoundAll(soundFile, entity, common);
 	
-			if (!common)
+			if (!common && !(eFlags & 1))
 			{
 				g_smRecent.SetValue(soundFile, 1, true);
 				DataPack dataPack;
