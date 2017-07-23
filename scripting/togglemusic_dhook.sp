@@ -10,7 +10,7 @@
 #pragma newdecls required
 
 #define PLUGIN_NAME 	"Toggle Music"
-#define PLUGIN_VERSION 	"3.6.5"
+#define PLUGIN_VERSION 	"3.6.4"
 
 //Create ConVar handles
 Handle g_hClientVolCookie;
@@ -22,6 +22,8 @@ float g_fCmdTime[MAXPLAYERS+1];
 float g_fClientVol[MAXPLAYERS+1];
 bool g_bDisabled[MAXPLAYERS + 1];
 StringMap g_smSourceEnts;
+StringMap g_smCommon;
+StringMap g_smRecent;
 
 public Plugin myinfo =
 {
@@ -42,6 +44,12 @@ public void OnPluginStart()
 
 	if (g_smSourceEnts == null)
 		g_smSourceEnts = new StringMap();
+	
+	if (g_smCommon == null)
+		g_smCommon = new StringMap();
+	
+	if (g_smRecent == null)
+		g_smRecent = new StringMap();
 	
 	if (g_hClientVolCookie == null)
 		g_hClientVolCookie = RegClientCookie("togglemusic_volume", "ToggleMusic Volume Pref", CookieAccess_Protected);
@@ -97,6 +105,8 @@ public void OnPluginStart()
 public void OnMapStart()
 {	
 	g_smSourceEnts.Clear();
+	g_smCommon.Clear();
+	g_smRecent.Clear();
 }
 
 public void OnClientCookiesCached(int client)
@@ -104,7 +114,7 @@ public void OnClientCookiesCached(int client)
 	OnClientPostAdminCheck(client);
 	g_fCmdTime[client] = 0.0;
 	if (g_bDisabled[client])
-		CreateTimer(12.0, ClientMusicNotice, client);
+		CreateTimer(7.0, ClientMusicNotice, client);
 }
 
 public void OnClientPostAdminCheck(int client)
@@ -162,15 +172,44 @@ public MRESReturn AcceptInput(int entity, Handle hReturn, Handle hParams)
 	{
 		if (StrEqual(eCommand, "PlaySound", false) || (StrEqual(eCommand, "Volume", false) && (StringToInt(eParam) > 0)))
 		{
-			StopSoundAll(soundFile, entity);
-			SendSoundAll(soundFile, entity);
+			int temp;
+			bool common = g_smCommon.GetValue(soundFile, temp);
+			if (StrEqual(eCommand, "Volume", false) && !common)
+			{
+				g_smCommon.SetValue(soundFile, 1, true);
+				common = true;
+				AddToStringTable( FindStringTable( "soundprecache" ), FakePrecacheSound(soundFile, true) );
+				PrecacheSound(FakePrecacheSound(soundFile, true), false);
+			}
+			if (g_smRecent.GetValue(soundFile, temp))
+			{
+				g_smRecent.Remove(soundFile);
+				g_smCommon.SetValue(soundFile, 1, true);
+				common = true;
+				AddToStringTable( FindStringTable( "soundprecache" ), FakePrecacheSound(soundFile, true) );
+				PrecacheSound(FakePrecacheSound(soundFile, true), false);
+				//Debug
+				//PrintToServer("COMMON SOUND DETECTED %s", soundFile);
+			}
 
+			SendSoundAll(soundFile, entity, common);
+	
+			if (!common)
+			{
+				g_smRecent.SetValue(soundFile, 1, true);
+				DataPack dataPack;
+				CreateDataTimer(1.5, CheckCommonSounds, dataPack);
+				dataPack.WriteString(soundFile);
+				dataPack.WriteCell(entity);
+			}
 			DHookSetReturn(hReturn, false);
 			return MRES_Supercede;
 		} 
 		else if (StrEqual(eCommand, "StopSound", false) || (StrEqual(eCommand, "Volume", false) && (StringToInt(eParam) == 0)))
 		{
-			StopSoundAll(soundFile, entity);
+			int temp;
+			bool common = g_smCommon.GetValue(soundFile, temp);	
+			StopSoundAll(soundFile, entity, common);
 			return MRES_Ignored;
 		}
 	}
@@ -197,6 +236,20 @@ public int GetSourceEntity(int entity)
 	return entity;
 }
 
+public Action CheckCommonSounds(Handle timer, DataPack dataPack)
+{
+	dataPack.Reset();
+	char soundFile[PLATFORM_MAX_PATH];
+	dataPack.ReadString(soundFile, sizeof(soundFile));
+	g_smRecent.Remove(soundFile);
+	int temp;
+	if (g_smCommon.GetValue(soundFile, temp))
+	{
+		temp = dataPack.ReadCell();			
+		StopSoundAll(soundFile, temp, false);
+	}
+}
+
 public void OnEntityCreated(int entity, const char[] classname)
 {
 	if (StrEqual(classname, "ambient_generic", false))
@@ -221,8 +274,10 @@ public void OnEntitySpawned(int entity)
 	
 	if (len > 4 && (StrEqual(sSound[len-3], "mp3") || StrEqual(sSound[len-3], "wav")))
 	{
-		AddToStringTable( FindStringTable( "soundprecache" ), FakePrecacheSound(sSound) );
-		PrecacheSound(FakePrecacheSound(sSound), false);
+		int temp;
+		bool common = g_smCommon.GetValue(sSound, temp);
+		AddToStringTable( FindStringTable( "soundprecache" ), FakePrecacheSound(sSound, common) );
+		PrecacheSound(FakePrecacheSound(sSound, common), false);
 	}
 	
 	if (!(eFlags & 1) && seName[0])
@@ -382,7 +437,7 @@ static void makeVolumeMenu(int client)
 	volumeMenu.Display(client, 30);
 }
 
-stock void SendSoundAll(char[] name, int entity)
+stock void SendSoundAll(char[] name, int entity, bool common = false)
 {
 	if (IsValidEntity(entity))
 	{
@@ -393,7 +448,7 @@ stock void SendSoundAll(char[] name, int entity)
 			{
 				if (!g_bDisabled[i] && IsValidClient(i))
 				{
-					EmitSoundToClient(i, FakePrecacheSound(name), i, SNDCHAN_USER_BASE, SNDLEVEL_NORMAL, SND_NOFLAGS, g_fClientVol[i], SNDPITCH_NORMAL, -1, _, _, true);
+					EmitSoundToClient(i, FakePrecacheSound(name, common), i, SNDCHAN_USER_BASE, SNDLEVEL_NORMAL, SND_NOFLAGS, g_fClientVol[i], SNDPITCH_NORMAL, -1, _, _, true);
 				}
 			}
 		} else {
@@ -402,24 +457,24 @@ stock void SendSoundAll(char[] name, int entity)
 			{
 				if (!g_bDisabled[i] && IsValidClient(i))
 				{
-					EmitSoundToClient(i, FakePrecacheSound(name), sourceEnt, SNDCHAN_USER_BASE, SNDLEVEL_NORMAL, SND_NOFLAGS, g_fClientVol[i], SNDPITCH_NORMAL, -1, _, _, true);
+					EmitSoundToClient(i, FakePrecacheSound(name, common), sourceEnt, SNDCHAN_USER_BASE, SNDLEVEL_NORMAL, SND_NOFLAGS, g_fClientVol[i], SNDPITCH_NORMAL, -1, _, _, true);
 				}
 			}
 		}
 	}
 }
 
-stock void ClientStopSound(int client, char[] name = "")
+stock void ClientStopSound(int client, char[] name = "", bool common = false)
 {
 	if (name[0]) {
-		StopSound(client, SNDCHAN_USER_BASE, FakePrecacheSound(name));
+		StopSound(client, SNDCHAN_USER_BASE, FakePrecacheSound(name, common));
 	} else {
 		ClientCommand(client, "playgamesound Music.StopAllExceptMusic");
 		ClientCommand(client, "playgamesound Music.StopAllMusic");
 	}
 }
 
-stock static void StopSoundAll(char[] name, int entity)
+stock static void StopSoundAll(char[] name, int entity, bool common = false)
 {
 	if (IsValidEntity(entity))
 	{
@@ -429,25 +484,32 @@ stock static void StopSoundAll(char[] name, int entity)
 			for (int i = 1; i <= MaxClients; i++)
 			{
 				if (!g_bDisabled[i] && IsValidClient(i)) {
-					ClientStopSound(i, name);
+					ClientStopSound(i, name, common);
 				}
 			}
 		}
 		else
 		{
 			int sourceEnt = GetSourceEntity(entity);
-			StopSound(sourceEnt, SNDCHAN_USER_BASE, FakePrecacheSound(name));
+			StopSound(sourceEnt, SNDCHAN_USER_BASE, FakePrecacheSound(name, common));
 		}
 	}
 }
 
-stock static char[] FakePrecacheSound(const char[] sample)
+stock static char[] FakePrecacheSound(const char[] sample, const bool common = false)
 {
 	char szSound[PLATFORM_MAX_PATH];
 	strcopy(szSound, sizeof(szSound), sample);
 	if (szSound[0] != '*' && szSound[0] != '#')
 	{
-		Format(szSound, sizeof(szSound), "#%s", szSound);
+		if (!common)
+		{
+			Format(szSound, sizeof(szSound), "#%s", szSound);
+		}
+		else 
+		{
+			Format(szSound, sizeof(szSound), "*%s", szSound);
+		}
 	}
 	return szSound;
 }
