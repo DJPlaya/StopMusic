@@ -10,7 +10,7 @@
 #pragma newdecls required
 
 #define PLUGIN_NAME 	"Toggle Music"
-#define PLUGIN_VERSION 	"3.6.6"
+#define PLUGIN_VERSION 	"3.6.7"
 
 //Create ConVar handles
 Handle g_hClientVolCookie;
@@ -83,7 +83,7 @@ public void OnPluginStart()
 			SetFailState("Why you no has gamedata?");
 		}
 	
-		//HookEvent("round_start", Event_RoundStart);
+		HookEvent("round_start", Event_RoundStart);
 		
 		int offset = GameConfGetOffset(temp, "AcceptInput");
 		hAcceptInput = DHookCreate(offset, HookType_Entity, ReturnType_Bool, ThisPointer_CBaseEntity, AcceptInput);
@@ -109,12 +109,17 @@ public void OnMapStart()
 	g_smRecent.Clear();
 }
 
+public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+{
+	g_smRecent.Clear();
+}
+
 public void OnClientCookiesCached(int client)
 {
 	OnClientPostAdminCheck(client);
 	g_fCmdTime[client] = 0.0;
 	if (g_bDisabled[client])
-		CreateTimer(7.0, ClientMusicNotice, client);
+		CreateTimer(15.0, ClientMusicNotice, client);
 }
 
 public void OnClientPostAdminCheck(int client)
@@ -202,7 +207,7 @@ public MRESReturn AcceptInput(int entity, Handle hReturn, Handle hParams)
 			{
 				g_smRecent.SetValue(soundFile, 1, true);
 				DataPack dataPack;
-				CreateDataTimer(1.5, CheckCommonSounds, dataPack);
+				CreateDataTimer(1.2, CheckCommonSounds, dataPack);
 				dataPack.WriteString(soundFile);
 				dataPack.WriteCell(entity);
 			}
