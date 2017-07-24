@@ -10,7 +10,7 @@
 #pragma newdecls required
 
 #define PLUGIN_NAME 	"Toggle Music"
-#define PLUGIN_VERSION 	"3.6.7"
+#define PLUGIN_VERSION 	"3.6.8"
 
 //Create ConVar handles
 Handle g_hClientVolCookie;
@@ -509,15 +509,27 @@ stock static char[] FakePrecacheSound(const char[] sample, const bool common = f
 {
 	char szSound[PLATFORM_MAX_PATH];
 	strcopy(szSound, sizeof(szSound), sample);
-	if (szSound[0] != '*' && szSound[0] != '#')
+	if (common)
 	{
-		if (!common)
+		if (szSound[0] != '*')
 		{
-			Format(szSound, sizeof(szSound), "#%s", szSound);
+			if (szSound[0] == '#')
+			{
+				Format(szSound, sizeof(szSound), "*%s", szSound[1]);
+			} else
+			{
+				Format(szSound, sizeof(szSound), "*%s", szSound);
+			}
 		}
-		else 
+	} else 
+	{
+		if (szSound[0] == '*')
 		{
-			Format(szSound, sizeof(szSound), "*%s", szSound);
+			Format(szSound, sizeof(szSound), "%s", szSound[1]);
+		}
+		if (szSound[0] == '#')
+		{
+			Format(szSound, sizeof(szSound), "%s", szSound[1]);
 		}
 	}
 	return szSound;
