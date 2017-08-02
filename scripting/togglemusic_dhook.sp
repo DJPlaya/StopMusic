@@ -10,7 +10,7 @@
 #pragma newdecls required
 
 #define PLUGIN_NAME 	"Toggle Music"
-#define PLUGIN_VERSION 	"3.7.0"
+#define PLUGIN_VERSION 	"3.7.1"
 
 //Create ConVar handles
 Handle g_hClientVolCookie;
@@ -203,6 +203,9 @@ public MRESReturn AcceptInput(int entity, Handle hReturn, Handle hParams)
 				PrecacheSound(FakePrecacheSound(soundFile, true), false);
 				//Debug vv
 				//PrintToServer("COMMON SOUND DETECTED %s", soundFile);
+			} else {
+				AddToStringTable( FindStringTable( "soundprecache" ), FakePrecacheSound(soundFile, common) );
+				PrecacheSound(FakePrecacheSound(soundFile, common), false);
 			}
 			
 			//Debug vv
@@ -223,7 +226,7 @@ public MRESReturn AcceptInput(int entity, Handle hReturn, Handle hParams)
 			DHookSetReturn(hReturn, false);
 			return MRES_Supercede;
 		} 
-		else if (StrEqual(eCommand, "StopSound", false) || (StrEqual(eCommand, "Volume", false) && (StringToInt(eParam) == 0)))
+		else if (StrEqual(eCommand, "StopSound", false) || StrEqual(eCommand, "FadeOut", false) || (StrEqual(eCommand, "Volume", false) && (StringToInt(eParam) == 0)))
 		{
 			int temp;
 			bool common = g_smCommon.GetValue(soundFile, temp);	
@@ -288,11 +291,7 @@ public void OnEntitySpawned(int entity)
 	GetEntPropString(entity, Prop_Data, "m_iszSound", sSound, sizeof(sSound));
 	GetEntPropString(entity, Prop_Data, "m_sSourceEntName", seName, sizeof(seName));
 	int eFlags = GetEntProp(entity, Prop_Data, "m_spawnflags");
-
 	int temp;
-	bool common = g_smCommon.GetValue(sSound, temp);
-	AddToStringTable( FindStringTable( "soundprecache" ), FakePrecacheSound(sSound, common) );
-	PrecacheSound(FakePrecacheSound(sSound, common), false);
 	if (!g_smChannel.GetValue(sSound, temp))
 	{
 		if (eFlags & 1)
