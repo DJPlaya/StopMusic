@@ -10,7 +10,7 @@
 #pragma newdecls required
 
 #define PLUGIN_NAME 	"Toggle Music"
-#define PLUGIN_VERSION 	"3.7.1"
+#define PLUGIN_VERSION 	"3.7.5"
 
 //Create ConVar handles
 Handle g_hClientVolCookie;
@@ -26,6 +26,7 @@ StringMap g_smSourceEnts;
 StringMap g_smChannel;
 StringMap g_smCommon;
 StringMap g_smRecent;
+StringMap g_smVolume;
 
 public Plugin myinfo =
 {
@@ -55,6 +56,9 @@ public void OnPluginStart()
 	
 	if (g_smRecent == null)
 		g_smRecent = new StringMap();
+		
+	if (g_smVolume == null)
+		g_smVolume = new StringMap();
 	
 	if (g_hClientVolCookie == null)
 		g_hClientVolCookie = RegClientCookie("togglemusic_volume", "ToggleMusic Volume Pref", CookieAccess_Protected);
@@ -87,8 +91,8 @@ public void OnPluginStart()
 		if(temp == null) {
 			SetFailState("Why you no has gamedata?");
 		}
-	
-		HookEvent("round_start", Event_RoundStart);
+
+		HookEvent("round_poststart", Event_PostRoundStart);
 		
 		int offset = GameConfGetOffset(temp, "AcceptInput");
 		hAcceptInput = DHookCreate(offset, HookType_Entity, ReturnType_Bool, ThisPointer_CBaseEntity, AcceptInput);
@@ -100,6 +104,8 @@ public void OnPluginStart()
 		
 		delete temp;
 	}
+	
+	AddAmbientSoundHook(Hook_AmbientSound);
 	
 	//Set volume level to default (late load)
 	for (int j = 1; j <= MaxClients; j++) {
@@ -113,12 +119,41 @@ public void OnMapStart()
 	g_smChannel.Clear();
 	g_smCommon.Clear();
 	g_smRecent.Clear();
+	g_smVolume.Clear();
 	randomChannel = SNDCHAN_USER_BASE - 75;
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+public void Event_PostRoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	g_smRecent.Clear();
+	g_smVolume.Clear();
+	for (int j = 1; j <= MaxClients; j++) {
+		if (IsValidClient(j)){
+			ClientCommand(j, "snd_setsoundparam Music.StartRound.valve_csgo_01 volume 0");
+			ClientCommand(j, "snd_setsoundparam Music.StartRound_01.valve_csgo_01 volume 0");
+			ClientCommand(j, "snd_setsoundparam Music.StartRound_02.valve_csgo_01 volume 0");
+			ClientCommand(j, "snd_setsoundparam Music.StartRound_03.valve_csgo_01 volume 0");
+			ClientCommand(j, "snd_setsoundparam Music.StartAction.valve_csgo_01 volume 0");
+			ClientCommand(j, "snd_setsoundparam Music.StartAction_01.valve_csgo_01 volume 0"); 
+			ClientCommand(j, "snd_setsoundparam Music.DeathCam.valve_csgo_01 volume 0");
+			ClientCommand(j, "snd_setsoundparam Music.LostRound.valve_csgo_01 volume 0");
+			ClientCommand(j, "snd_setsoundparam Music.WonRound.valve_csgo_01 volume 0");
+			ClientCommand(j, "snd_setsoundparam Music.MVPAnthem.valve_csgo_01 volume 0");
+			ClientCommand(j, "snd_setsoundparam Music.MVPAnthem_01.valve_csgo_01 volume 0");
+			
+			ClientCommand(j, "snd_setsoundparam Music.StartRound.valve_csgo_02 volume 0");
+			ClientCommand(j, "snd_setsoundparam Music.StartRound_01.valve_csgo_02 volume 0");
+			ClientCommand(j, "snd_setsoundparam Music.StartRound_02.valve_csgo_02 volume 0");
+			ClientCommand(j, "snd_setsoundparam Music.StartRound_03.valve_csgo_02 volume 0");
+			ClientCommand(j, "snd_setsoundparam Music.StartAction.valve_csgo_02 volume 0");
+			ClientCommand(j, "snd_setsoundparam Music.StartAction_01.valve_csgo_02 volume 0"); 
+			ClientCommand(j, "snd_setsoundparam Music.DeathCam.valve_csgo_02 volume 0");
+			ClientCommand(j, "snd_setsoundparam Music.LostRound.valve_csgo_02 volume 0");
+			ClientCommand(j, "snd_setsoundparam Music.WonRound.valve_csgo_02 volume 0");
+			ClientCommand(j, "snd_setsoundparam Music.MVPAnthem.valve_csgo_02 volume 0");
+			ClientCommand(j, "snd_setsoundparam Music.MVPAnthem_01.valve_csgo_02 volume 0");
+		}
+	}
 }
 
 public void OnClientCookiesCached(int client)
@@ -176,24 +211,56 @@ public MRESReturn AcceptInput(int entity, Handle hReturn, Handle hParams)
 {
 	char eCommand[128], eParam[128], soundFile[PLATFORM_MAX_PATH];
 	DHookGetParamString(hParams, 1, eCommand, sizeof(eCommand));
-	DHookGetParamObjectPtrString(hParams, 4, 0, ObjectValueType_String, eParam, sizeof(eParam));
+	
+	int type, iParam = -1;
+	type = DHookGetParamObjectPtrVar(hParams, 4, 16, ObjectValueType_Int);
+	
+	if (type == 1)
+	{
+		iParam = RoundFloat(DHookGetParamObjectPtrVar(hParams, 4, 0, ObjectValueType_Float));
+	} else if (type == 2)
+	{
+		DHookGetParamObjectPtrString(hParams, 4, 0, ObjectValueType_String, eParam, sizeof(eParam));
+		StringToIntEx(eParam, iParam);
+	}
+	
 	GetEntPropString(entity, Prop_Data, "m_iszSound", soundFile, sizeof(soundFile));
 	int eFlags = GetEntProp(entity, Prop_Data, "m_spawnflags");
 	//Debug vv
-	//PrintToServer("Cmd %s Name %s Param %s Song %s", eCommand, eName, eParam, soundFile);
+	//////PrintToServer("Cmd %s Name %s Param %s Song %s", eCommand, eName, eParam, soundFile);
 	//char eName[128];
 	//GetEntPropString(entity, Prop_Data, "m_iName", eName, sizeof(eName));
+	//PrintToServer("Cmd %s Name %s Param %s Song %s", eCommand, eName, eParam, soundFile);
 	//Debug ^^
+	
 	if (IsValidEntity(entity))
 	{
-		if (StrEqual(eCommand, "PlaySound", false) || (StrEqual(eCommand, "Volume", false) && (StringToInt(eParam) > 0)))
+		if (StrEqual(eCommand, "PlaySound", false) || StrEqual(eCommand, "FadeIn", false) || (StrEqual(eCommand, "Volume", false) && (iParam > 0)))
 		{
+			if (eFlags & 1)
+			{
+				int curVol;
+				if (g_smVolume.GetValue(soundFile, curVol) && StrEqual(eCommand, "Volume", false))
+				{
+					if (curVol != iParam)
+					{
+						//Different volume but already playing? Ignore
+						return MRES_Ignored;
+					}
+				} else {
+					if (StrEqual(eCommand, "PlaySound", false))
+					{
+						g_smVolume.SetValue(soundFile, 10, true);
+					} else if (StrEqual(eCommand, "Volume", false))
+					{
+						g_smVolume.SetValue(soundFile, iParam, true);
+					}
+				}
+			}
+			
 			int temp;
 			bool common = g_smCommon.GetValue(soundFile, temp);
-			if (StrEqual(eCommand, "Volume", false) && (eFlags & 1))
-			{
-				StopSoundAll(soundFile, entity, common);
-			}
+
 			if (g_smRecent.GetValue(soundFile, temp))
 			{
 				g_smRecent.Remove(soundFile);
@@ -219,18 +286,24 @@ public MRESReturn AcceptInput(int entity, Handle hReturn, Handle hParams)
 			{
 				g_smRecent.SetValue(soundFile, 1, true);
 				DataPack dataPack;
-				CreateDataTimer(1.2, CheckCommonSounds, dataPack);
+				CreateDataTimer(0.6, CheckCommonSounds, dataPack);
 				dataPack.WriteString(soundFile);
 				dataPack.WriteCell(entity);
 			}
 			DHookSetReturn(hReturn, false);
 			return MRES_Supercede;
 		} 
-		else if (StrEqual(eCommand, "StopSound", false) || StrEqual(eCommand, "FadeOut", false) || (StrEqual(eCommand, "Volume", false) && (StringToInt(eParam) == 0)))
+		else if (StrEqual(eCommand, "StopSound", false) || StrEqual(eCommand, "FadeOut", false) || (StrEqual(eCommand, "Volume", false) && (iParam == 0)))
 		{
 			int temp;
 			bool common = g_smCommon.GetValue(soundFile, temp);	
 			StopSoundAll(soundFile, entity, common);
+			
+			if (eFlags & 1)
+			{
+				g_smVolume.Remove(soundFile);
+			}
+			
 			return MRES_Ignored;
 		}
 	}
@@ -271,6 +344,24 @@ public Action CheckCommonSounds(Handle timer, DataPack dataPack)
 	}
 }
 
+public Action Hook_AmbientSound(char sample[PLATFORM_MAX_PATH], int &entity, float &volume, int &level, int &pitch, float pos[3], int &flags, float &delay)
+{
+	char classname[128];
+	if (GetEntityClassname(entity, classname, sizeof(classname)))
+	{
+		if (StrEqual(classname, "ambient_generic", false))
+		{
+			//Is this a valid entity?
+			if (IsValidEdict(entity))
+			{
+				DHookEntity(hAcceptInput, false, entity);
+				return Plugin_Stop;
+			}
+		}
+	}
+	return Plugin_Continue;
+}
+
 public void OnEntityCreated(int entity, const char[] classname)
 {
 	if (StrEqual(classname, "ambient_generic", false))
@@ -278,35 +369,17 @@ public void OnEntityCreated(int entity, const char[] classname)
 		//Is this a valid entity?
 		if (IsValidEdict(entity))
 		{
-				DHookEntity(hAcceptInput, false, entity);
-				//Hook the entity, we must wait until post spawn
-				SDKHook(entity, SDKHook_SpawnPost, OnEntitySpawned);
+			//Hook the entity, we must wait until post spawn
+			SDKHook(entity, SDKHook_SpawnPost, OnEntitySpawned);
 		}
 	}
 }
 
 public void OnEntitySpawned(int entity)
 {
-	char sSound[PLATFORM_MAX_PATH], seName[64], eName[64];
-	GetEntPropString(entity, Prop_Data, "m_iszSound", sSound, sizeof(sSound));
+	char seName[64], eName[64];
 	GetEntPropString(entity, Prop_Data, "m_sSourceEntName", seName, sizeof(seName));
 	int eFlags = GetEntProp(entity, Prop_Data, "m_spawnflags");
-	int temp;
-	if (!g_smChannel.GetValue(sSound, temp))
-	{
-		if (eFlags & 1)
-		{
-			g_smChannel.SetValue(sSound, randomChannel, false);
-			randomChannel++;
-			if (randomChannel > SNDCHAN_USER_BASE)
-			{
-				randomChannel = SNDCHAN_USER_BASE - 75;
-			}
-		} else
-		{
-			g_smChannel.SetValue(sSound, (SNDCHAN_USER_BASE - 76), false);
-		}
-	}
 	
 	if (!(eFlags & 1) && seName[0])
 	{
@@ -469,26 +542,37 @@ stock void SendSoundAll(char[] name, int entity, bool common = false)
 {
 	if (IsValidEntity(entity))
 	{
-		int customChannel, eFlags = GetEntProp(entity, Prop_Data, "m_spawnflags");
-		if (g_smChannel.GetValue(name, customChannel))
+		int eFlags = GetEntProp(entity, Prop_Data, "m_spawnflags");
+		
+		if (eFlags & 1)
 		{
-			if (eFlags & 1)
+			int customChannel;
+			
+			if (!g_smChannel.GetValue(name, customChannel))
 			{
-				for (int i = 1; i <= MaxClients; i++)
+				g_smChannel.SetValue(name, randomChannel, false);
+				customChannel = randomChannel;
+				randomChannel++;
+				if (randomChannel > SNDCHAN_USER_BASE)
 				{
-					if (!g_bDisabled[i] && IsValidClient(i))
-					{
-						EmitSoundToClient(i, FakePrecacheSound(name, common), i, customChannel, SNDLEVEL_NORMAL, SND_NOFLAGS, g_fClientVol[i], SNDPITCH_NORMAL, -1, _, _, true);
-					}
+					randomChannel = SNDCHAN_USER_BASE - 75;
 				}
-			} else {
-				int sourceEnt = GetSourceEntity(entity);			
-				for (int i = 1; i <= MaxClients; i++)
+			}
+			
+			for (int i = 1; i <= MaxClients; i++)
+			{
+				if (!g_bDisabled[i] && IsValidClient(i))
 				{
-					if (!g_bDisabled[i] && IsValidClient(i))
-					{
-						EmitSoundToClient(i, FakePrecacheSound(name, common), sourceEnt, customChannel, SNDLEVEL_NORMAL, SND_NOFLAGS, g_fClientVol[i], SNDPITCH_NORMAL, -1, _, _, true);
-					}
+					EmitSoundToClient(i, FakePrecacheSound(name, common), i, customChannel, SNDLEVEL_NORMAL, SND_NOFLAGS, g_fClientVol[i], SNDPITCH_NORMAL, -1, _, _, true);
+				}
+			}
+		} else {
+			int sourceEnt = GetSourceEntity(entity);			
+			for (int i = 1; i <= MaxClients; i++)
+			{
+				if (!g_bDisabled[i] && IsValidClient(i))
+				{
+					EmitSoundToClient(i, FakePrecacheSound(name, common), sourceEnt, SNDCHAN_USER_BASE, SNDLEVEL_NORMAL, SND_NOFLAGS, g_fClientVol[i], SNDPITCH_NORMAL, -1, _, _, true);
 				}
 			}
 		}
@@ -502,6 +586,9 @@ stock void ClientStopSound(int client, char[] name = "", bool common = false)
 		if (g_smChannel.GetValue(name, customChannel))
 		{
 			StopSound(client, customChannel, FakePrecacheSound(name, common));
+		} else
+		{
+			StopSound(client, SNDCHAN_USER_BASE, FakePrecacheSound(name, common));
 		}
 	} else {
 		ClientCommand(client, "playgamesound Music.StopAllExceptMusic");
@@ -525,11 +612,8 @@ stock static void StopSoundAll(char[] name, int entity, bool common = false)
 		}
 		else
 		{
-			int customChannel, sourceEnt = GetSourceEntity(entity);
-			if (g_smChannel.GetValue(name, customChannel))
-			{
-				StopSound(sourceEnt, customChannel, FakePrecacheSound(name, common));
-			}
+			int sourceEnt = GetSourceEntity(entity);
+			StopSound(sourceEnt, SNDCHAN_USER_BASE, FakePrecacheSound(name, common));
 		}
 	}
 }
