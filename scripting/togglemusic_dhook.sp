@@ -10,7 +10,7 @@
 #pragma newdecls required
 
 #define PLUGIN_NAME 	"Toggle Music"
-#define PLUGIN_VERSION 	"3.7.5"
+#define PLUGIN_VERSION 	"3.7.6"
 
 //Create ConVar handles
 Handle g_hClientVolCookie;
@@ -104,8 +104,6 @@ public void OnPluginStart()
 		
 		delete temp;
 	}
-	
-	AddAmbientSoundHook(Hook_AmbientSound);
 	
 	//Set volume level to default (late load)
 	for (int j = 1; j <= MaxClients; j++) {
@@ -344,24 +342,6 @@ public Action CheckCommonSounds(Handle timer, DataPack dataPack)
 	}
 }
 
-public Action Hook_AmbientSound(char sample[PLATFORM_MAX_PATH], int &entity, float &volume, int &level, int &pitch, float pos[3], int &flags, float &delay)
-{
-	char classname[128];
-	if (GetEntityClassname(entity, classname, sizeof(classname)))
-	{
-		if (StrEqual(classname, "ambient_generic", false))
-		{
-			//Is this a valid entity?
-			if (IsValidEdict(entity))
-			{
-				DHookEntity(hAcceptInput, false, entity);
-				return Plugin_Stop;
-			}
-		}
-	}
-	return Plugin_Continue;
-}
-
 public void OnEntityCreated(int entity, const char[] classname)
 {
 	if (StrEqual(classname, "ambient_generic", false))
@@ -370,6 +350,7 @@ public void OnEntityCreated(int entity, const char[] classname)
 		if (IsValidEdict(entity))
 		{
 			//Hook the entity, we must wait until post spawn
+			DHookEntity(hAcceptInput, false, entity);
 			SDKHook(entity, SDKHook_SpawnPost, OnEntitySpawned);
 		}
 	}
