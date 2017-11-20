@@ -10,18 +10,20 @@
 #pragma newdecls required
 
 #define PLUGIN_NAME 	"Toggle Music"
-#define PLUGIN_VERSION 	"3.7.6"
+#define PLUGIN_VERSION 	"3.7.7"
 
 //Create ConVar handles
 Handle g_hClientVolCookie;
 Handle g_hClientMusicCookie;
 Handle hAcceptInput;
+ConVar g_ConVar_Debug;
 
 //Global Handles & Variables
 float g_fCmdTime[MAXPLAYERS+1];
 float g_fClientVol[MAXPLAYERS+1];
 bool g_bDisabled[MAXPLAYERS + 1];
 int randomChannel;
+int g_iDebug;
 StringMap g_smSourceEnts;
 StringMap g_smChannel;
 StringMap g_smCommon;
@@ -44,6 +46,10 @@ public void OnPluginStart()
 	RegConsoleCmd("sm_music", Command_Music, "Toggles map music");
 	RegConsoleCmd("sm_stopmusic", Command_StopMusic, "Toggles map music");
 	RegConsoleCmd("sm_volume", Command_Volume, "Brings volume menu");
+
+	g_ConVar_Debug = CreateConVar("sm_togglemusic_debug", "0", "Debug mode (0 = off, 1 = on)", 0, true, 0.0, true, 1.0);
+	g_iDebug = GetConVarInt(g_ConVar_Debug);
+	HookConVarChange(g_ConVar_Debug, OnConVarChanged);
 
 	if (g_smSourceEnts == null)
 		g_smSourceEnts = new StringMap();
@@ -108,6 +114,13 @@ public void OnPluginStart()
 	//Set volume level to default (late load)
 	for (int j = 1; j <= MaxClients; j++) {
 		OnClientPostAdminCheck(j);
+	}
+}
+
+public void OnConVarChanged(ConVar convar, const char[] oldVal, const char[] newVal)
+{
+	if (convar == g_ConVar_Debug) {
+		g_iDebug = StringToInt(newVal);
 	}
 }
 
@@ -224,29 +237,39 @@ public MRESReturn AcceptInput(int entity, Handle hReturn, Handle hParams)
 	
 	GetEntPropString(entity, Prop_Data, "m_iszSound", soundFile, sizeof(soundFile));
 	int eFlags = GetEntProp(entity, Prop_Data, "m_spawnflags");
-	//Debug vv
-	//////PrintToServer("Cmd %s Name %s Param %s Song %s", eCommand, eName, eParam, soundFile);
-	//char eName[128];
-	//GetEntPropString(entity, Prop_Data, "m_iName", eName, sizeof(eName));
-	//PrintToServer("Cmd %s Name %s Param %s Song %s", eCommand, eName, eParam, soundFile);
-	//Debug ^^
+	if (g_iDebug == 1) {
+		char eName[128];
+		GetEntPropString(entity, Prop_Data, "m_iName", eName, sizeof(eName));
+		PrintToServer("Cmd %s Name %s Param %s Song %s", eCommand, eName, eParam, soundFile);
+		PrintToChatAll("Cmd %s Name %s Param %s Song %s", eCommand, eName, eParam, soundFile);
+	}
 	
 	if (IsValidEntity(entity))
 	{
-		if (StrEqual(eCommand, "PlaySound", false) || StrEqual(eCommand, "FadeIn", false) || (StrEqual(eCommand, "Volume", false) && (iParam > 0)))
+		if (StrEqual(eCommand, "PlaySound", false) || StrEqual(eCommand, "FadeIn", false) || (StrEqual(eCommand, "Volume", false) && (iParam > 0)) || StrEqual(eCommand, "ToggleSound", false))
 		{
+			int temp;
+			bool common = g_smCommon.GetValue(soundFile, temp);
+			
 			if (eFlags & 1)
 			{
 				int curVol;
-				if (g_smVolume.GetValue(soundFile, curVol) && StrEqual(eCommand, "Volume", false))
+				if (g_smVolume.GetValue(soundFile, curVol) && (StrEqual(eCommand, "Volume", false) || StrEqual(eCommand, "ToggleSound", false)))
 				{
-					if (curVol != iParam)
+					if ((curVol != iParam) && StrEqual(eCommand, "Volume", false))
 					{
 						//Different volume but already playing? Ignore
-						return MRES_Ignored;
+						DHookSetReturn(hReturn, false);
+						return MRES_Supercede;
+					} else if (StrEqual(eCommand, "ToggleSound", false)) {
+						//Sound was played already, so toggle the sound off
+						g_smVolume.Remove(soundFile);
+						StopSoundAll(soundFile, entity, common);
+						DHookSetReturn(hReturn, false);
+						return MRES_Supercede;
 					}
 				} else {
-					if (StrEqual(eCommand, "PlaySound", false))
+					if (StrEqual(eCommand, "PlaySound", false) || StrEqual(eCommand, "ToggleSound", false))
 					{
 						g_smVolume.SetValue(soundFile, 10, true);
 					} else if (StrEqual(eCommand, "Volume", false))
@@ -255,9 +278,6 @@ public MRESReturn AcceptInput(int entity, Handle hReturn, Handle hParams)
 					}
 				}
 			}
-			
-			int temp;
-			bool common = g_smCommon.GetValue(soundFile, temp);
 
 			if (g_smRecent.GetValue(soundFile, temp))
 			{
