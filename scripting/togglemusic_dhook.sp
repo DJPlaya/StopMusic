@@ -5,17 +5,20 @@
 #include <sdkhooks>
 #include <dhooks>
 #include <clientprefs>
+#include <regex>
 //#include <emitsoundany>
 
 #pragma newdecls required
 
 #define PLUGIN_NAME 	"Toggle Music"
-#define PLUGIN_VERSION 	"3.7.7"
+#define PLUGIN_VERSION 	"3.7.8"
 
 //Create ConVar handles
 Handle g_hClientVolCookie;
 Handle g_hClientMusicCookie;
 Handle hAcceptInput;
+Regex regPattern;
+RegexError regError;
 ConVar g_ConVar_Debug;
 
 //Global Handles & Variables
@@ -71,6 +74,11 @@ public void OnPluginStart()
 		
 	if (g_hClientMusicCookie == null)
 		g_hClientMusicCookie = RegClientCookie("togglemusic_music", "ToggleMusic Music Pref", CookieAccess_Protected);
+	
+	char preError[256];
+	char prePattern[256] = "(([-_a-zA-Z0-9]+[/]?)+[.][a-zA-Z0-9]{3})";
+	regPattern = CompileRegex(prePattern, PCRE_CASELESS, preError, sizeof(preError), regError);
+	if (regError != REGEX_ERROR_NONE) { LogError(preError); }
 	
 	if (hAcceptInput == null)
 	{
@@ -220,7 +228,12 @@ public Action ClientMusicNotice(Handle timer, int client)
 //
 public MRESReturn AcceptInput(int entity, Handle hReturn, Handle hParams)
 {
-	char eCommand[128], eParam[128], soundFile[PLATFORM_MAX_PATH];
+	//Abort if the entity is missing
+	if (!IsValidEntity(entity)) { return MRES_Ignored; }
+	
+	char eClassname[128], eCommand[128], eParam[128], soundFile[PLATFORM_MAX_PATH];
+	int eActivator;
+	
 	DHookGetParamString(hParams, 1, eCommand, sizeof(eCommand));
 	
 	int type, iParam = -1;
@@ -235,95 +248,122 @@ public MRESReturn AcceptInput(int entity, Handle hReturn, Handle hParams)
 		StringToIntEx(eParam, iParam);
 	}
 	
+	if (!DHookIsNullParam(hParams, 2)) {
+		eActivator = DHookGetParam(hParams, 2);
+		if (eActivator < -1) { eActivator = -1; }
+	} else { eActivator = -1; }
+	
+	GetEntityClassname(entity, eClassname, sizeof(eClassname));
+	
+	if (StrEqual(eClassname, "point_clientcommand", false)) {
+		//Don't allow client sounds to override this plugin
+		if ((StrContains(eParam, ".mp3", false) != -1) || (StrContains(eParam, ".wav", false) != -1))
+		{
+			int matchCount = MatchRegex(regPattern, eParam, regError);
+			if (matchCount > 0) {
+				if (GetRegexSubString(regPattern, 0, soundFile, sizeof(soundFile))) {
+					AddToStringTable( FindStringTable( "soundprecache" ), FakePrecacheSound(soundFile, true) );
+					PrecacheSound(FakePrecacheSound(soundFile, true), false);
+					ClientSendSound(soundFile, eActivator, true);
+				}
+			}
+			DHookSetReturn(hReturn, false);
+			return MRES_Supercede;
+		}
+		return MRES_Ignored;
+	}
+	
 	GetEntPropString(entity, Prop_Data, "m_iszSound", soundFile, sizeof(soundFile));
 	int eFlags = GetEntProp(entity, Prop_Data, "m_spawnflags");
 	if (g_iDebug == 1) {
 		char eName[128];
 		GetEntPropString(entity, Prop_Data, "m_iName", eName, sizeof(eName));
-		PrintToServer("Cmd %s Name %s Param %s Song %s", eCommand, eName, eParam, soundFile);
-		PrintToChatAll("Cmd %s Name %s Param %s Song %s", eCommand, eName, eParam, soundFile);
+		PrintToServer("Cmd %s Name %s Activator %i Param %s Song %s", eCommand, eName, eActivator, eParam, soundFile);
+		PrintToChatAll("Cmd %s Name %s Activator %i Param %s Song %s", eCommand, eName, eActivator, eParam, soundFile);
 	}
 	
-	if (IsValidEntity(entity))
+	if (StrEqual(eCommand, "PlaySound", false) || StrEqual(eCommand, "FadeIn", false) || (StrEqual(eCommand, "Volume", false) && (iParam > 0)) || StrEqual(eCommand, "ToggleSound", false))
 	{
-		if (StrEqual(eCommand, "PlaySound", false) || StrEqual(eCommand, "FadeIn", false) || (StrEqual(eCommand, "Volume", false) && (iParam > 0)) || StrEqual(eCommand, "ToggleSound", false))
-		{
-			int temp;
-			bool common = g_smCommon.GetValue(soundFile, temp);
-			
-			if (eFlags & 1)
-			{
-				int curVol;
-				if (g_smVolume.GetValue(soundFile, curVol) && (StrEqual(eCommand, "Volume", false) || StrEqual(eCommand, "ToggleSound", false)))
-				{
-					if ((curVol != iParam) && StrEqual(eCommand, "Volume", false))
-					{
-						//Different volume but already playing? Ignore
-						DHookSetReturn(hReturn, false);
-						return MRES_Supercede;
-					} else if (StrEqual(eCommand, "ToggleSound", false)) {
-						//Sound was played already, so toggle the sound off
-						g_smVolume.Remove(soundFile);
-						StopSoundAll(soundFile, entity, common);
-						DHookSetReturn(hReturn, false);
-						return MRES_Supercede;
-					}
-				} else {
-					if (StrEqual(eCommand, "PlaySound", false) || StrEqual(eCommand, "ToggleSound", false))
-					{
-						g_smVolume.SetValue(soundFile, 10, true);
-					} else if (StrEqual(eCommand, "Volume", false))
-					{
-						g_smVolume.SetValue(soundFile, iParam, true);
-					}
-				}
-			}
-
-			if (g_smRecent.GetValue(soundFile, temp))
-			{
-				g_smRecent.Remove(soundFile);
-				g_smCommon.SetValue(soundFile, 1, true);
-				common = true;
-				AddToStringTable( FindStringTable( "soundprecache" ), FakePrecacheSound(soundFile, true) );
-				PrecacheSound(FakePrecacheSound(soundFile, true), false);
-				//Debug vv
-				//PrintToServer("COMMON SOUND DETECTED %s", soundFile);
-			} else {
-				AddToStringTable( FindStringTable( "soundprecache" ), FakePrecacheSound(soundFile, common) );
-				PrecacheSound(FakePrecacheSound(soundFile, common), false);
-			}
-			
-			//Debug vv
-			//int customChannel;
-			//g_smChannel.GetValue(soundFile, customChannel);
-			//PrintToServer("Cmd %s Name %s Param %s Channel %i Song %s", eCommand, eName, eParam, customChannel, FakePrecacheSound(soundFile, common));
-			
-			SendSoundAll(soundFile, entity, common);
-	
-			if (!common && !(eFlags & 1))
-			{
-				g_smRecent.SetValue(soundFile, 1, true);
-				DataPack dataPack;
-				CreateDataTimer(0.6, CheckCommonSounds, dataPack);
-				dataPack.WriteString(soundFile);
-				dataPack.WriteCell(entity);
-			}
-			DHookSetReturn(hReturn, false);
-			return MRES_Supercede;
-		} 
-		else if (StrEqual(eCommand, "StopSound", false) || StrEqual(eCommand, "FadeOut", false) || (StrEqual(eCommand, "Volume", false) && (iParam == 0)))
-		{
-			int temp;
-			bool common = g_smCommon.GetValue(soundFile, temp);	
-			StopSoundAll(soundFile, entity, common);
-			
-			if (eFlags & 1)
-			{
-				g_smVolume.Remove(soundFile);
-			}
-			
+		int temp;
+		bool common = g_smCommon.GetValue(soundFile, temp);
+		
+		if (!((StrContains(soundFile, ".mp3", false) != -1) || (StrContains(soundFile, ".wav", false) != -1))) {
+			//Workaround for client soundscripts (?)
 			return MRES_Ignored;
 		}
+		
+		if (eFlags & 1)
+		{
+			int curVol;
+			if (g_smVolume.GetValue(soundFile, curVol) && (StrEqual(eCommand, "Volume", false) || StrEqual(eCommand, "ToggleSound", false)))
+			{
+				if ((curVol != iParam) && StrEqual(eCommand, "Volume", false))
+				{
+					//Different volume but already playing? Ignore
+					DHookSetReturn(hReturn, false);
+					return MRES_Supercede;
+				} else if (StrEqual(eCommand, "ToggleSound", false)) {
+					//Sound was played already, so toggle the sound off
+					g_smVolume.Remove(soundFile);
+					StopSoundAll(soundFile, entity, common);
+					DHookSetReturn(hReturn, false);
+					return MRES_Supercede;
+				}
+			} else {
+				if (StrEqual(eCommand, "PlaySound", false) || StrEqual(eCommand, "ToggleSound", false))
+				{
+					g_smVolume.SetValue(soundFile, 10, true);
+				} else if (StrEqual(eCommand, "Volume", false))
+				{
+					g_smVolume.SetValue(soundFile, iParam, true);
+				}
+			}
+		}
+
+		if (g_smRecent.GetValue(soundFile, temp))
+		{
+			g_smRecent.Remove(soundFile);
+			g_smCommon.SetValue(soundFile, 1, true);
+			common = true;
+			AddToStringTable( FindStringTable( "soundprecache" ), FakePrecacheSound(soundFile, true) );
+			PrecacheSound(FakePrecacheSound(soundFile, true), false);
+			//Debug vv
+			//PrintToServer("COMMON SOUND DETECTED %s", soundFile);
+		} else {
+			AddToStringTable( FindStringTable( "soundprecache" ), FakePrecacheSound(soundFile, common) );
+			PrecacheSound(FakePrecacheSound(soundFile, common), false);
+		}
+		
+		//Debug vv
+		//int customChannel;
+		//g_smChannel.GetValue(soundFile, customChannel);
+		//PrintToServer("Cmd %s Name %s Param %s Channel %i Song %s", eCommand, eName, eParam, customChannel, FakePrecacheSound(soundFile, common));
+		
+		SendSoundAll(soundFile, entity, common);
+
+		if (!common && !(eFlags & 1))
+		{
+			g_smRecent.SetValue(soundFile, 1, true);
+			DataPack dataPack;
+			CreateDataTimer(0.6, CheckCommonSounds, dataPack);
+			dataPack.WriteString(soundFile);
+			dataPack.WriteCell(entity);
+		}
+		DHookSetReturn(hReturn, false);
+		return MRES_Supercede;
+	} 
+	else if (StrEqual(eCommand, "StopSound", false) || StrEqual(eCommand, "FadeOut", false) || (StrEqual(eCommand, "Volume", false) && (iParam == 0)))
+	{
+		int temp;
+		bool common = g_smCommon.GetValue(soundFile, temp);	
+		StopSoundAll(soundFile, entity, common);
+		
+		if (eFlags & 1)
+		{
+			g_smVolume.Remove(soundFile);
+		}
+		
+		return MRES_Ignored;
 	}
 	
 	return MRES_Ignored;
@@ -372,6 +412,12 @@ public void OnEntityCreated(int entity, const char[] classname)
 			//Hook the entity, we must wait until post spawn
 			DHookEntity(hAcceptInput, false, entity);
 			SDKHook(entity, SDKHook_SpawnPost, OnEntitySpawned);
+		}
+	} else if (StrEqual(classname, "point_clientcommand", false)) {
+		//Is this a valid entity?
+		if (IsValidEntity(entity))
+		{
+			DHookEntity(hAcceptInput, false, entity);
 		}
 	}
 }
@@ -580,6 +626,29 @@ stock void SendSoundAll(char[] name, int entity, bool common = false)
 	}
 }
 
+stock void ClientSendSound(char[] name, int client, bool common = false)
+{
+	if (!IsValidClient2(client)) { return; }
+
+	int customChannel;
+	
+	if (!g_smChannel.GetValue(name, customChannel))
+	{
+		g_smChannel.SetValue(name, randomChannel, false);
+		customChannel = randomChannel;
+		randomChannel++;
+		if (randomChannel > SNDCHAN_USER_BASE)
+		{
+			randomChannel = SNDCHAN_USER_BASE - 75;
+		}
+	}
+			
+	if (!g_bDisabled[client])
+	{
+		EmitSoundToClient(client, FakePrecacheSound(name, common), client, customChannel, SNDLEVEL_NORMAL, SND_NOFLAGS, g_fClientVol[client], SNDPITCH_NORMAL, -1, _, _, true);
+	}
+}
+
 stock void ClientStopSound(int client, char[] name = "", bool common = false)
 {
 	if (name[0]) {
@@ -655,3 +724,17 @@ stock static bool IsValidClient(int client) {
 	}
 	return true;
 }  
+
+stock bool IsValidClient2(int client)
+{
+	if ((client <= 0) || (client > MaxClients)) {
+		return false;
+	}
+	if (!IsClientInGame(client)) {
+		return false;
+	}
+	if (!IsPlayerAlive(client)) {
+		return false;
+	}
+	return true;
+} 
