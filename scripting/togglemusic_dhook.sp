@@ -105,7 +105,7 @@ public void OnPluginStart()
 			SetFailState("Gamedata Missing!");
 			
 		if (eVer == Engine_CSGO)
-			HookEvent("round_poststart", Event_RoundStarted); // CSGO Only
+			HookEvent("round_poststart", Event_RoundStarted_CSGO); // CSGO Only
 			
 		else
 			HookEvent("round_start", Event_RoundStarted); // Supported on all Games
@@ -142,12 +142,37 @@ public void OnMapStart()
 	randomChannel = SNDCHAN_USER_BASE - 75;
 }
 
-public void Event_RoundStarted(Event event, const char[] name, bool dontBroadcast)
+public Event_RoundStarted_CSGO(Event event, const char[] name, bool dontBroadcast)
+{
+	SetVolumeRoundstart();
+}
+
+public Event_RoundStarted(Event event, const char[] name, bool dontBroadcast)
+{
+	LoopTillFullyLoaded(INVALID_HANDLE);
+}
+
+public Action LoopTillFullyLoaded(Handle hTimer)
+{
+	if(1 > GetGameTime()) // Fix for Crashes on older Engines
+	{
+		CreateTimer(1.0, LoopTillFullyLoaded, INVALID_HANDLE, TIMER_DATA_HNDL_CLOSE | TIMER_FLAG_NO_MAPCHANGE);
+		return;
+	}
+	
+	else
+		SetVolumeRoundstart();
+}
+
+public void SetVolumeRoundstart()
 {
 	g_smRecent.Clear();
 	g_smVolume.Clear();
-	for (int j = 1; j <= MaxClients; j++) {
-		if (IsValidClient(j)) {
+	
+	for (int j = 1; j <= MaxClients; j++)
+	{
+		if (IsValidClient(j) && !IsFakeClient(j))
+		{
 			ClientCommand(j, "snd_setsoundparam Music.StartRound.valve_csgo_01 volume 0");
 			ClientCommand(j, "snd_setsoundparam Music.StartRound_01.valve_csgo_01 volume 0");
 			ClientCommand(j, "snd_setsoundparam Music.StartRound_02.valve_csgo_01 volume 0");
@@ -190,11 +215,11 @@ public void OnClientPostAdminCheck(int client)
 		char sCookieValue[12];
 		GetClientCookie(client, g_hClientVolCookie, sCookieValue, sizeof(sCookieValue));
 		if (sCookieValue[0])
-		{
 			g_fClientVol[client] = StringToFloat(sCookieValue);
-		} else {
+			
+		else
 			g_fClientVol[client] = 1.0;
-		}
+			
 		sCookieValue = "";
 		GetClientCookie(client, g_hClientMusicCookie, sCookieValue, sizeof(sCookieValue));
 		if (sCookieValue[0])
@@ -203,12 +228,16 @@ public void OnClientPostAdminCheck(int client)
 			{
 				g_bDisabled[client] = true;
 				
-			} else {
-				g_bDisabled[client] = false;
 			}
-		} else {
-			g_bDisabled[client] = false;
+			
+			else
+				g_bDisabled[client] = false;
+				
 		}
+		
+		else
+			g_bDisabled[client] = false;
+			
 		return;
 	}
 	g_fClientVol[client] = 1.0;
@@ -218,9 +247,7 @@ public void OnClientPostAdminCheck(int client)
 public Action ClientMusicNotice(Handle timer, int client)
 {
 	if (IsClientInGame(client))
-	{
 		PrintToChat(client, "[ToggleMusic] Music is currently disabled, type !music for options");
-	}
 }
 
 //Return types
@@ -737,4 +764,42 @@ stock bool IsValidClient2(int client)
 		return false;
 	}
 	return true;
+}
+
+// Part of Teamgames-stocks.inc
+
+stock RequestFrame2(RequestFrameCallback:func, framesAhead = 1, any:data = 0)
+{
+	if (framesAhead < 1)
+		return;
+
+	if (framesAhead == 1) {
+		RequestFrame(func, data);
+	} else {
+		new Handle:pack = CreateDataPack();
+#if SOURCEMOD_V_MAJOR >= 1 && SOURCEMOD_V_MINOR >= 7
+		WritePackFunction(pack, func);
+#else
+		WritePackCell(pack, func);
+#endif
+		WritePackCell(pack, framesAhead);
+		WritePackCell(pack, data);
+
+		RequestFrame(RequestFrame2_CallBack, pack);
+	}
+}
+
+public RequestFrame2_CallBack(any:pack)
+{
+	ResetPack(Handle:pack);
+#if SOURCEMOD_V_MAJOR >= 1 && SOURCEMOD_V_MINOR >= 7
+	new RequestFrameCallback:func = RequestFrameCallback:ReadPackFunction(Handle:pack);
+#else
+	new RequestFrameCallback:func = RequestFrameCallback:ReadPackCell(Handle:pack);
+#endif
+	new framesAhead = ReadPackCell(Handle:pack) - 1;
+	new data = ReadPackCell(Handle:pack);
+	CloseHandle(Handle:pack);
+
+	RequestFrame2(func, framesAhead, data);
 }
